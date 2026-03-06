@@ -34,9 +34,15 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // We are permitting EVERY endpoint starting with /api/v1.0/
-                        // to prove the connection is alive.
-                        .requestMatchers("/register", "/**").permitAll()
+                        .requestMatchers(
+                                "/register",      // New user sync
+                                "/webhooks/**",   // Clerk background events
+                                "/files/public/**",
+                                "/files/download/**",
+                                "/users/credits", // Initial dashboard credit check
+                                "/health"
+                        ).permitAll()
+                        .anyRequest().authenticated()
                 )
                 .addFilterBefore(clerkJwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -46,6 +52,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+
+        // FIX: Using Patterns allows credentials while still accepting all origins
         config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

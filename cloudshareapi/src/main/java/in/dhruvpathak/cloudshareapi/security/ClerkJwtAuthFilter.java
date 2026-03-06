@@ -30,7 +30,7 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
 
-        // FIX: The filter now ignores these paths so new users can register and see credits
+        // FIX: Allow these paths to skip JWT validation so initial sync works
         if (path.contains("/webhooks") ||
                 path.contains("/public") ||
                 path.contains("/download") ||
@@ -64,7 +64,6 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
                 String kid = headerNode.get("kid").asText();
                 PublicKey publicKey = this.jwksProvider.getPublicKey(kid);
 
-                // Validates the token against the Clerk Issuer
                 Claims claims = Jwts.parserBuilder()
                         .setSigningKey(publicKey)
                         .setAllowedClockSkewSeconds(60L)
@@ -81,7 +80,6 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
 
             } catch (Exception e) {
-                // If the CLERK_SECRET_KEY is wrong, this will trigger a 403
                 response.sendError(403, "Invalid JWT token: " + e.getMessage());
             }
         } else {
