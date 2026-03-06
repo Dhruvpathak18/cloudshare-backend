@@ -16,10 +16,14 @@ public class ProfileController {
     private final ProfileService profileService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerProfile(@RequestBody ProfileDTO profileDTO){
+    public ResponseEntity<?> registerProfile(@RequestBody ProfileDTO profileDTO) {
+        // 1. Check if the user already exists to avoid MongoDB Duplicate Key errors
+        if (profileService.existsByClerkId(profileDTO.getClerkId())) {
+            return ResponseEntity.ok("User already exists, skipping creation.");
+        }
 
-        HttpStatus status=profileService.existsByClerkId(profileDTO.getClerkId())?HttpStatus.OK:HttpStatus.CREATED;
-        ProfileDTO savedProfile=profileService.createProfile(profileDTO);
+        // 2. If they don't exist, create the profile
+        ProfileDTO savedProfile = profileService.createProfile(profileDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedProfile);
     }
 }
