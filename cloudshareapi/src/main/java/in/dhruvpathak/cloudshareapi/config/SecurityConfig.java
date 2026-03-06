@@ -29,17 +29,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(Customizer.withDefaults())
+                .cors(Customizer.withDefaults()) // Uses the source defined below
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/webhooks/**",
-                                "/files/public/**",
-                                "/files/download/**",
-                                "/health"
+                                "/api/v1.0/register",      // FIX: Allow sync for new users
+                                "/api/v1.0/webhooks/**",
+                                "/api/v1.0/files/public/**",
+                                "/api/v1.0/files/download/**",
+                                "/api/v1.0/health"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -55,9 +56,15 @@ public class SecurityConfig {
 
     private UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+
+        // Allowed Origins: Uses "*" for now to ensure Vercel can connect
         config.setAllowedOriginPatterns(List.of("*"));
+
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        // FIX: Allow all headers to prevent 403 blocks from Clerk/Axios
+        config.setAllowedHeaders(List.of("*"));
+
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
