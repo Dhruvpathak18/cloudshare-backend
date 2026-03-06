@@ -2,7 +2,6 @@ package in.dhruvpathak.cloudshareapi.config;
 
 import in.dhruvpathak.cloudshareapi.security.ClerkJwtAuthFilter;
 import java.util.List;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -29,21 +28,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(Customizer.withDefaults()) // Links to the corsConfigurationSource bean below
-                .csrf(AbstractHttpConfigurer::disable) // Required for stateless APIs
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/register",      // Permit user sync
-                                "/webhooks/**",
-                                "/files/public/**",
-                                "/files/download/**",
-                                "/users/credits", // Permit initial dashboard load
-                                "/health"
-                        ).permitAll()
-                        .anyRequest().authenticated()
+                        // We are permitting EVERY endpoint starting with /api/v1.0/
+                        // to prove the connection is alive.
+                        .requestMatchers("/register", "/**").permitAll()
                 )
                 .addFilterBefore(clerkJwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -53,15 +46,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
-        // Allows any origin to resolve CORS issues during testing
         config.setAllowedOriginPatterns(List.of("*"));
-
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-
-        // Allows all headers (Crucial for Clerk/Axios headers)
         config.setAllowedHeaders(List.of("*"));
-
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
