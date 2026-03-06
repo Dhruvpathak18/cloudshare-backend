@@ -14,7 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
@@ -29,18 +29,19 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(Customizer.withDefaults()) // Uses the source defined below
-                .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults()) // Links to the corsConfigurationSource bean below
+                .csrf(AbstractHttpConfigurer::disable) // Required for stateless APIs
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/v1.0/register",      // FIX: Allow sync for new users
-                                "/api/v1.0/webhooks/**",
-                                "/api/v1.0/files/public/**",
-                                "/api/v1.0/files/download/**",
-                                "/api/v1.0/health"
+                                "/register",      // Permit user sync
+                                "/webhooks/**",
+                                "/files/public/**",
+                                "/files/download/**",
+                                "/users/credits", // Permit initial dashboard load
+                                "/health"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -50,19 +51,15 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsFilter corsFilter() {
-        return new CorsFilter(corsConfigurationSource());
-    }
-
-    private UrlBasedCorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Allowed Origins: Uses "*" for now to ensure Vercel can connect
+        // Allows any origin to resolve CORS issues during testing
         config.setAllowedOriginPatterns(List.of("*"));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
-        // FIX: Allow all headers to prevent 403 blocks from Clerk/Axios
+        // Allows all headers (Crucial for Clerk/Axios headers)
         config.setAllowedHeaders(List.of("*"));
 
         config.setAllowCredentials(true);
