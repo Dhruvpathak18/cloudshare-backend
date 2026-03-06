@@ -26,39 +26,66 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
     private String clerkIssuer;
     private final ClerkJwksProvider jwksProvider;
 
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        if (!request.getRequestURI().contains("/webhooks") && !request.getRequestURI().contains("/public") && !request.getRequestURI().contains("/download") && !request.getRequestURI().contains("/health")) {
-            String authHeader = request.getHeader("Authorization");
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                try {
-                    String token = authHeader.substring(7);
-                    String[] chunks = token.split("\\.");
-                    if (chunks.length < 3) {
-                        response.sendError(403, "Invalid JWT token format");
-                    } else {
-                        String headerJson = new String(Base64.getUrlDecoder().decode(chunks[0]));
-                        ObjectMapper mapper = new ObjectMapper();
-                        JsonNode headerNode = mapper.readTree(headerJson);
-                        if (!headerNode.has("kid")) {
-                            response.sendError(403, "Token header is missing kid");
-                        } else {
-                            String kid = headerNode.get("kid").asText();
-                            PublicKey publicKey = this.jwksProvider.getPublicKey(kid);
-                            Claims claims = (Claims)Jwts.parserBuilder().setSigningKey(publicKey).setAllowedClockSkewSeconds(60L).requireIssuer(this.clerkIssuer).build().parseClaimsJws(token).getBody();
-                            String clerkId = claims.getSubject();
-                            UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(clerkId, (Object)null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN")));
-                            SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-                            filterChain.doFilter(request, response);
-                        }
-                    }
-                } catch (Exception var15) {
-                    response.sendError(403, "Invalid JWT token: " + var15.getMessage());
+        String path = request.getRequestURI();
+
+        // FIX: The filter now ignores these paths so new users can register and see credits
+        if (path.contains("/webhooks") ||
+                path.contains("/public") ||
+                path.contains("/download") ||
+                path.contains("/health") ||
+                path.contains("/register") ||
+                path.contains("/users/credits")) {
+
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7);
+                String[] chunks = token.split("\\.");
+                if (chunks.length < 3) {
+                    response.sendError(403, "Invalid JWT token format");
+                    return;
                 }
-            } else {
-                response.sendError(403, "Authorization header missing/invalid");
+
+                String headerJson = new String(Base64.getUrlDecoder().decode(chunks[0]));
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode headerNode = mapper.readTree(headerJson);
+
+                if (!headerNode.has("kid")) {
+                    response.sendError(403, "Token header is missing kid");
+                    return;
+                }
+
+                String kid = headerNode.get("kid").asText();
+                PublicKey publicKey = this.jwksProvider.getPublicKey(kid);
+
+                // Validates the token against the Clerk Issuer
+                Claims claims = Jwts.parserBuilder()
+                        .setSigningKey(publicKey)
+                        .setAllowedClockSkewSeconds(60L)
+                        .requireIssuer(this.clerkIssuer)
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody();
+
+                String clerkId = claims.getSubject();
+                UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
+                        clerkId, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+
+                SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+                filterChain.doFilter(request, response);
+
+            } catch (Exception e) {
+                // If the CLERK_SECRET_KEY is wrong, this will trigger a 403
+                response.sendError(403, "Invalid JWT token: " + e.getMessage());
             }
         } else {
-            filterChain.doFilter(request, response);
+            response.sendError(403, "Authorization header missing/invalid");
         }
     }
 
