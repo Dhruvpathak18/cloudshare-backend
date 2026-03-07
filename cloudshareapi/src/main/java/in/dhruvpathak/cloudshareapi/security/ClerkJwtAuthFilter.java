@@ -30,13 +30,12 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String path = request.getRequestURI();
 
-        // FIX: Allow these paths to skip JWT validation so initial sync works
+        // 🔥 FIX: /users/credits is REMOVED so it correctly requires authentication
         if (path.contains("/webhooks") ||
                 path.contains("/public") ||
                 path.contains("/download") ||
                 path.contains("/health") ||
-                path.contains("/register") ||
-                path.contains("/users/credits")) {
+                path.contains("/register")) {
 
             filterChain.doFilter(request, response);
             return;

@@ -8,9 +8,9 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -18,30 +18,36 @@ import org.springframework.stereotype.Component;
 public class ClerkJwksProvider {
     @Value("${clerk.jwks-url}")
     private String jwksUrl;
-    private final Map<String, PublicKey> keyCache = new HashMap();
+
+    // 🔥 FIX: Thread-safe map prevents concurrency crashes when multiple users log in
+    private final Map<String, PublicKey> keyCache = new ConcurrentHashMap<>();
     private long lastFetchTime = 0L;
     private static final long CACHE_TTL = 3600000L;
 
-    public ClerkJwksProvider() {
-    }
+    public ClerkJwksProvider() {}
 
     public PublicKey getPublicKey(String kid) throws Exception {
-        if (this.keyCache.containsKey(kid) && System.currentTimeMillis() - this.lastFetchTime < 3600000L) {
-            return (PublicKey)this.keyCache.get(kid);
+        if (this.keyCache.containsKey(kid) && System.currentTimeMillis() - this.lastFetchTime < CACHE_TTL) {
+            return this.keyCache.get(kid);
         } else {
             this.refreshKeys();
-            return (PublicKey)this.keyCache.get(kid);
+            return this.keyCache.get(kid);
         }
     }
 
-    private void refreshKeys() throws Exception {
+    private synchronized void refreshKeys() throws Exception {
+        // Double-check locking to ensure only one thread fetches keys if cache just expired
+        if (System.currentTimeMillis() - this.lastFetchTime < CACHE_TTL && !this.keyCache.isEmpty()) {
+            return;
+        }
+
         ObjectMapper mapper = new ObjectMapper();
         JsonNode jwks = mapper.readTree(new URL(this.jwksUrl));
         JsonNode keys = jwks.get("keys");
-        Iterator var5 = keys.iterator();
+        Iterator<JsonNode> var5 = keys.iterator();
 
         while(var5.hasNext()) {
-            JsonNode keyNode = (JsonNode)var5.next();
+            JsonNode keyNode = var5.next();
             String kid = keyNode.get("kid").asText();
             String kty = keyNode.get("kty").asText();
             String alg = keyNode.get("alg").asText();

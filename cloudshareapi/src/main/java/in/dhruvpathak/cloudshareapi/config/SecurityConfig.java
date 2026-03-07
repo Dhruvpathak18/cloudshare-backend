@@ -2,6 +2,7 @@ package in.dhruvpathak.cloudshareapi.config;
 
 import in.dhruvpathak.cloudshareapi.security.ClerkJwtAuthFilter;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -21,6 +22,10 @@ public class SecurityConfig {
 
     private final ClerkJwtAuthFilter clerkJwtAuthFilter;
 
+    // Pulls from Render Env, defaults to localhost
+    @Value("${ALLOWED_ORIGIN:http://localhost:3000}")
+    private String allowedOrigin;
+
     public SecurityConfig(ClerkJwtAuthFilter clerkJwtAuthFilter) {
         this.clerkJwtAuthFilter = clerkJwtAuthFilter;
     }
@@ -35,12 +40,12 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/register",      // New user sync
-                                "/webhooks/**",   // Clerk background events
+                                "/register",
+                                "/webhooks/**",
                                 "/files/public/**",
                                 "/files/download/**",
-                                "/users/credits", // Initial dashboard credit check
-                                "/health"
+                                "/health",
+                                "/error" // 🔥 CRITICAL FIX: Stops Spring from masking 500 DB errors as 403s!
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -53,8 +58,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // FIX: Using Patterns allows credentials while still accepting all origins
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOrigins(List.of(allowedOrigin));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
