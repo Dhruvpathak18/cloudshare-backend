@@ -28,14 +28,23 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+
+        // 🔥 NEW FIX: Let browser preflight requests pass through without a token
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String path = request.getRequestURI();
 
         // 🔥 FIX: /users/credits is REMOVED so it correctly requires authentication
+        // Also allowing /error so Spring doesn't block its own error handling messages
         if (path.contains("/webhooks") ||
                 path.contains("/public") ||
                 path.contains("/download") ||
                 path.contains("/health") ||
-                path.contains("/register")) {
+                path.contains("/register") ||
+                path.contains("/error")) {
 
             filterChain.doFilter(request, response);
             return;

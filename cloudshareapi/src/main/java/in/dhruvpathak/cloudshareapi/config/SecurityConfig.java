@@ -2,9 +2,9 @@ package in.dhruvpathak.cloudshareapi.config;
 
 import in.dhruvpathak.cloudshareapi.security.ClerkJwtAuthFilter;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -22,10 +22,6 @@ public class SecurityConfig {
 
     private final ClerkJwtAuthFilter clerkJwtAuthFilter;
 
-    // Pulls from Render Env, defaults to localhost
-    @Value("${ALLOWED_ORIGIN:http://localhost:3000}")
-    private String allowedOrigin;
-
     public SecurityConfig(ClerkJwtAuthFilter clerkJwtAuthFilter) {
         this.clerkJwtAuthFilter = clerkJwtAuthFilter;
     }
@@ -39,13 +35,14 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // 🔥 NEW FIX: Unblocks CORS Preflight checks
                         .requestMatchers(
                                 "/register",
                                 "/webhooks/**",
                                 "/files/public/**",
                                 "/files/download/**",
                                 "/health",
-                                "/error" // 🔥 CRITICAL FIX: Stops Spring from masking 500 DB errors as 403s!
+                                "/error"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -58,7 +55,14 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of(allowedOrigin));
+        // 🔥 FIX: Use patterns with wildcards to allow localhost, main prod, and all Vercel previews securely
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:3000",
+                "http://localhost:5173", // Added standard Vite port just in case you use it locally
+                "https://cloudshare-frontend.vercel.app",
+                "https://*-dhruvpathak18s-projects.vercel.app"
+        ));
+
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
